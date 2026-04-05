@@ -3,8 +3,11 @@ import {
   Box,
   Card,
   CardContent,
+  Checkbox,
   CircularProgress,
   FormControl,
+  FormControlLabel,
+  FormGroup,
   InputLabel,
   MenuItem,
   Select,
@@ -24,8 +27,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import dayjs from 'dayjs';
-import { subscribeTransactions, subscribeBudget } from '../lib/firebase';
-import type { Transaction, Budget } from '../types';
+import { subscribeTransactions, subscribeBudget, subscribeSettings } from '../lib/firebase';
+import type { Transaction, Budget, Settings } from '../types';
 
 const PIE_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#D3D3D3', '#FFB347'];
 
@@ -36,8 +39,10 @@ function formatYen(value: number) {
 export function AnalyticsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budget, setBudgetState] = useState<Budget | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   // 過去6ヶ月の選択肢を生成
   const monthOptions = Array.from({ length: 6 }, (_, i) =>
@@ -56,6 +61,18 @@ export function AnalyticsPage() {
     const unsub = subscribeBudget(selectedMonth, setBudgetState);
     return unsub;
   }, [selectedMonth]);
+
+  useEffect(() => {
+    const unsub = subscribeSettings(data => setSettings(data));
+    return unsub;
+  }, []);
+
+  // settings がロードされたら全カテゴリを選択状態にセット
+  useEffect(() => {
+    if (settings?.categories) {
+      setSelectedCategories(settings.categories);
+    }
+  }, [settings]);
 
   const monthTransactions = transactions.filter(t => t.date.startsWith(selectedMonth));
   const totalAmount = monthTransactions.reduce((sum, t) => sum + t.amount, 0);
@@ -78,12 +95,14 @@ export function AnalyticsPage() {
     }, {}),
   ).map(([name, value]) => ({ name, value }));
 
-  // 過去6ヶ月の推移
+  const allCategories = settings?.categories ?? [...new Set(transactions.map(t => t.category))];
+
+  // 過去6ヶ月の推移（選択カテゴリで絞り込み）
   const trendData = monthOptions
     .map(month => ({
       month,
       合計: transactions
-        .filter(t => t.date.startsWith(month))
+        .filter(t => t.date.startsWith(month) && selectedCategories.includes(t.category))
         .reduce((sum, t) => sum + t.amount, 0),
     }))
     .reverse();
@@ -139,6 +158,29 @@ export function AnalyticsPage() {
             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
               月別支出推移
             </Typography>
+            <FormGroup row sx={{ flexWrap: 'wrap', mb: 1 }}>
+              {allCategories.map((cat, i) => (
+                <FormControlLabel
+                  key={cat}
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={selectedCategories.includes(cat)}
+                      onChange={e => {
+                        setSelectedCategories(prev =>
+                          e.target.checked ? [...prev, cat] : prev.filter(c => c !== cat),
+                        );
+                      }}
+                      sx={{
+                        color: PIE_COLORS[i % PIE_COLORS.length],
+                        '&.Mui-checked': { color: PIE_COLORS[i % PIE_COLORS.length] },
+                      }}
+                    />
+                  }
+                  label={<Typography variant="caption">{cat}</Typography>}
+                />
+              ))}
+            </FormGroup>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" />
