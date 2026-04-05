@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Card,
+  CardActionArea,
   CardContent,
   Chip,
   CircularProgress,
@@ -19,9 +20,15 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import dayjs from 'dayjs';
-import { subscribeTransactions, addTransaction, subscribeSettings } from '../lib/firebase';
+import {
+  subscribeTransactions,
+  addTransaction,
+  updateTransaction,
+  deleteTransaction,
+  subscribeSettings,
+} from '../lib/firebase';
 import type { Transaction, TransactionInput, Settings } from '../types';
 
 const DEFAULT_SETTINGS: Settings = {
@@ -39,22 +46,46 @@ const CATEGORY_COLORS: Record<string, string> = {
   その他: '#D3D3D3',
 };
 
-function AddTransactionDialog({
+// 追加・編集共用ダイアログ
+function TransactionDialog({
   open,
   onClose,
   settings,
+  editTarget,
 }: {
   open: boolean;
   onClose: () => void;
   settings: Settings;
+  editTarget: Transaction | null; // null なら新規追加
 }) {
+  const isEdit = editTarget !== null;
+
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [member, setMember] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+
+  // 編集対象が変わったらフォームを初期化
+  useEffect(() => {
+    if (editTarget) {
+      setDate(editTarget.date);
+      setAmount(String(editTarget.amount));
+      setCategory(editTarget.category);
+      setMember(editTarget.member);
+      setDescription(editTarget.description);
+    } else {
+      setDate(dayjs().format('YYYY-MM-DD'));
+      setAmount('');
+      setCategory('');
+      setMember('');
+      setDescription('');
+    }
+    setError('');
+  }, [editTarget, open]);
 
   async function handleSave() {
     if (!amount || !category || !member) {
@@ -69,12 +100,11 @@ function AddTransactionDialog({
     setSaving(true);
     try {
       const input: TransactionInput = { date, amount: parsedAmount, category, member, description };
-      await addTransaction(input);
-      setAmount('');
-      setCategory('');
-      setMember('');
-      setDescription('');
-      setError('');
+      if (isEdit) {
+        await updateTransaction(editTarget!.id, input);
+      } else {
+        await addTransaction(input);
+      }
       onClose();
     } catch {
       setError('保存に失敗しました。');
@@ -83,9 +113,23 @@ function AddTransactionDialog({
     }
   }
 
+  async function handleDelete() {
+    if (!editTarget) return;
+    if (!window.confirm('この支出を削除しますか？')) return;
+    setDeleting(true);
+    try {
+      await deleteTransaction(editTarget.id);
+      onClose();
+    } catch {
+      setError('削除に失敗しました。');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>支出を追加</DialogTitle>
+      <DialogTitle>{isEdit ? '支出を編集' : '支出を追加'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <TextField
@@ -108,9 +152,7 @@ function AddTransactionDialog({
             <InputLabel>カテゴリ</InputLabel>
             <Select value={category} label="カテゴリ" onChange={e => setCategory(e.target.value)}>
               {settings.categories.map(cat => (
-                <MenuItem key={cat} value={cat}>
-                  {cat}
-                </MenuItem>
+                <MenuItem key={cat} value={cat}>{cat}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -118,9 +160,7 @@ function AddTransactionDialog({
             <InputLabel>メンバー</InputLabel>
             <Select value={member} label="メンバー" onChange={e => setMember(e.target.value)}>
               {settings.members.map(m => (
-                <MenuItem key={m} value={m}>
-                  {m}
-                </MenuItem>
+                <MenuItem key={m} value={m}>{m}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -133,17 +173,30 @@ function AddTransactionDialog({
             fullWidth
           />
           {error && (
-            <Typography color="error" variant="body2">
-              {error}
-            </Typography>
+            <Typography color="error" variant="body2">{error}</Typography>
           )}
         </Stack>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>キャンセル</Button>
-        <Button variant="contained" onClick={handleSave} disabled={saving}>
-          {saving ? <CircularProgress size={20} /> : '保存'}
-        </Button>
+      <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+        {/* 削除ボタン（編集時のみ表示） */}
+        {isEdit ? (
+          <Button
+            color="error"
+            startIcon={<DeleteIcon />}
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? <CircularProgress size={20} /> : '削除'}
+          </Button>
+        ) : (
+          <Box />
+        )}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button onClick={onClose}>キャンセル</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {saving ? <CircularProgress size={20} /> : '保存'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   );
@@ -154,6 +207,7 @@ export function TransactionsPage() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Transaction | null>(null);
   const currentMonth = dayjs().format('YYYY-MM');
 
   useEffect(() => {
@@ -164,6 +218,16 @@ export function TransactionsPage() {
     const unsub2 = subscribeSettings(setSettings);
     return () => { unsub1(); unsub2(); };
   }, []);
+
+  function openAdd() {
+    setEditTarget(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(t: Transaction) {
+    setEditTarget(t);
+    setDialogOpen(true);
+  }
 
   const thisMonthTotal = transactions
     .filter(t => t.date.startsWith(currentMonth))
@@ -192,11 +256,7 @@ export function TransactionsPage() {
       </Card>
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setDialogOpen(true)}
-        >
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>
           支出を追加
         </Button>
       </Box>
@@ -211,37 +271,41 @@ export function TransactionsPage() {
         )}
         {transactions.map(t => (
           <Card key={t.id} variant="outlined">
-            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    {t.date}
+            {/* タップで編集ダイアログを開く */}
+            <CardActionArea onClick={() => openEdit(t)}>
+              <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      {t.date}
+                    </Typography>
+                    <Typography variant="body1" fontWeight="medium">
+                      {t.description || t.category}
+                    </Typography>
+                    <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                      <Chip
+                        label={t.category}
+                        size="small"
+                        sx={{ bgcolor: CATEGORY_COLORS[t.category] ?? '#D3D3D3', height: 20 }}
+                      />
+                      <Chip label={t.member} size="small" sx={{ height: 20 }} />
+                    </Stack>
+                  </Box>
+                  <Typography variant="h6" fontWeight="bold" sx={{ ml: 2 }}>
+                    ¥{t.amount.toLocaleString()}
                   </Typography>
-                  <Typography variant="body1" fontWeight="medium">
-                    {t.description || t.category}
-                  </Typography>
-                  <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
-                    <Chip
-                      label={t.category}
-                      size="small"
-                      sx={{ bgcolor: CATEGORY_COLORS[t.category] ?? '#D3D3D3', height: 20 }}
-                    />
-                    <Chip label={t.member} size="small" sx={{ height: 20 }} />
-                  </Stack>
                 </Box>
-                <Typography variant="h6" fontWeight="bold" sx={{ ml: 2 }}>
-                  ¥{t.amount.toLocaleString()}
-                </Typography>
-              </Box>
-            </CardContent>
+              </CardContent>
+            </CardActionArea>
           </Card>
         ))}
       </Stack>
 
-      <AddTransactionDialog
+      <TransactionDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         settings={settings}
+        editTarget={editTarget}
       />
     </Box>
   );

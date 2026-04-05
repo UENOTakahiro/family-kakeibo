@@ -16,11 +16,13 @@ import { LoginPage } from './pages/LoginPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { BudgetPage } from './pages/BudgetPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 const NAV_ITEMS = [
   { label: '履歴', path: '/transactions' },
   { label: '分析', path: '/analytics' },
   { label: '予算', path: '/budget' },
+  { label: '設定', path: '/settings' },
 ];
 
 function NavTabs() {
@@ -59,6 +61,7 @@ function Layout() {
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/budget" element={<BudgetPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Box>
     </Box>
