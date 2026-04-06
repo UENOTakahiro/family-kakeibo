@@ -13,12 +13,14 @@ import {
 import { Logout as LogoutIcon } from '@mui/icons-material';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { BudgetPage } from './pages/BudgetPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 const NAV_ITEMS = [
+  { label: 'ホーム', path: '/dashboard' },
   { label: '履歴', path: '/transactions' },
   { label: '分析', path: '/analytics' },
   { label: '予算', path: '/budget' },
@@ -59,7 +61,8 @@ function Layout() {
       </AppBar>
       <Box sx={{ py: 2 }}>
         <Routes>
-          <Route path="/" element={<Navigate to="/transactions" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/budget" element={<BudgetPage />} />
