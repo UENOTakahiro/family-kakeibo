@@ -35,6 +35,7 @@ const transactionConverter: FirestoreDataConverter<Transaction> = {
       category: d.category,
       member: d.member,
       description: d.description,
+      settlementTarget: d.settlementTarget ?? true,
       createdAt: d.createdAt ?? null,
       updatedAt: d.updatedAt ?? null,
     };

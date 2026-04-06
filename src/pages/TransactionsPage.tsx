@@ -15,12 +15,14 @@ import {
   DialogTitle,
   Divider,
   FormControl,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   InputLabel,
   MenuItem,
   Select,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -75,6 +77,7 @@ function TransactionDialog({
   const [category, setCategory] = useState('');
   const [member, setMember] = useState('');
   const [description, setDescription] = useState('');
+  const [settlementTarget, setSettlementTarget] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -87,12 +90,14 @@ function TransactionDialog({
       setCategory(editTarget.category);
       setMember(editTarget.member);
       setDescription(editTarget.description);
+      setSettlementTarget(editTarget.settlementTarget);
     } else {
       setDate(dayjs().format('YYYY-MM-DD'));
       setAmount('');
       setCategory('');
       setMember('');
       setDescription('');
+      setSettlementTarget(true);
     }
     setError('');
   }, [editTarget, open]);
@@ -109,7 +114,7 @@ function TransactionDialog({
     }
     setSaving(true);
     try {
-      const input: TransactionInput = { date, amount: parsedAmount, category, member, description };
+      const input: TransactionInput = { date, amount: parsedAmount, category, member, description, settlementTarget };
       if (isEdit) {
         await updateTransaction(editTarget!.id, input);
       } else {
@@ -181,6 +186,15 @@ function TransactionDialog({
             multiline
             rows={2}
             fullWidth
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settlementTarget}
+                onChange={e => setSettlementTarget(e.target.checked)}
+              />
+            }
+            label="精算対象に含める"
           />
           {error && (
             <Typography color="error" variant="body2">{error}</Typography>
@@ -446,6 +460,9 @@ export function TransactionsPage() {
                         sx={{ bgcolor: CATEGORY_COLORS[t.category] ?? '#D3D3D3', height: 20 }}
                       />
                       <Chip label={t.member} size="small" sx={{ height: 20 }} />
+                      {!t.settlementTarget && (
+                        <Chip label="精算対象外" size="small" variant="outlined" sx={{ height: 20 }} />
+                      )}
                     </Stack>
                   </Box>
                   <Typography variant="h6" fontWeight="bold" sx={{ ml: 2 }}>

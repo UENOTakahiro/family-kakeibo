@@ -7,6 +7,7 @@ export interface Transaction {
   category: string;
   member: string;
   description: string;
+  settlementTarget: boolean; // 精算対象かどうか（デフォルト: true）
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -17,6 +18,7 @@ export interface TransactionInput {
   category: string;
   member: string;
   description: string;
+  settlementTarget: boolean;
 }
 
 export interface Budget {
