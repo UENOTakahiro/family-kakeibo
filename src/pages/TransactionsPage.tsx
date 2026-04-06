@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Badge,
   Box,
   Button,
   Card,
@@ -7,12 +8,15 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
   FormControl,
+  IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Select,
@@ -20,7 +24,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  FilterList as FilterListIcon,
+  Search as SearchIcon,
+  Close as CloseIcon,
+} from '@mui/icons-material';
 import dayjs from 'dayjs';
 import {
   subscribeTransactions,
@@ -202,13 +212,32 @@ function TransactionDialog({
   );
 }
 
+const MONTH_ALL = 'all';
+
 export function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Transaction | null>(null);
+
+  // フィルター状態
+  const [searchText, setSearchText] = useState('');
+  const [filterMonth, setFilterMonth] = useState(dayjs().format('YYYY-MM'));
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [filterMember, setFilterMember] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+
   const currentMonth = dayjs().format('YYYY-MM');
+
+  // 過去12ヶ月の選択肢
+  const monthOptions = [
+    { value: MONTH_ALL, label: 'すべての月' },
+    ...Array.from({ length: 12 }, (_, i) => {
+      const m = dayjs().subtract(i, 'month').format('YYYY-MM');
+      return { value: m, label: m };
+    }),
+  ];
 
   useEffect(() => {
     const unsub1 = subscribeTransactions(data => {
@@ -229,9 +258,39 @@ export function TransactionsPage() {
     setDialogOpen(true);
   }
 
-  const thisMonthTotal = transactions
-    .filter(t => t.date.startsWith(currentMonth))
-    .reduce((sum, t) => sum + t.amount, 0);
+  function toggleCategory(cat: string) {
+    setFilterCategories(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat],
+    );
+  }
+
+  function clearFilters() {
+    setSearchText('');
+    setFilterMonth(currentMonth);
+    setFilterCategories([]);
+    setFilterMember('');
+  }
+
+  // フィルター適用
+  const filtered = transactions.filter(t => {
+    if (filterMonth !== MONTH_ALL && !t.date.startsWith(filterMonth)) return false;
+    if (filterCategories.length > 0 && !filterCategories.includes(t.category)) return false;
+    if (filterMember && t.member !== filterMember) return false;
+    if (searchText) {
+      const q = searchText.toLowerCase();
+      if (!t.description.toLowerCase().includes(q) && !t.category.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const filteredTotal = filtered.reduce((s, t) => s + t.amount, 0);
+
+  // アクティブなフィルター数（月フィルターはデフォルトが今月なので変更時のみカウント）
+  const activeFilterCount =
+    (filterMonth !== currentMonth ? 1 : 0) +
+    (filterCategories.length > 0 ? 1 : 0) +
+    (filterMember ? 1 : 0) +
+    (searchText ? 1 : 0);
 
   if (loading) {
     return (
@@ -243,35 +302,133 @@ export function TransactionsPage() {
 
   return (
     <Box sx={{ maxWidth: 720, mx: 'auto', p: 2 }}>
-      {/* 今月の合計 */}
+      {/* 合計カード */}
       <Card sx={{ mb: 2 }}>
         <CardContent>
           <Typography variant="body2" color="text.secondary">
-            今月の合計支出（{currentMonth}）
+            {filterMonth === MONTH_ALL ? '全期間' : filterMonth} の合計支出
+            {activeFilterCount > 0 && '（フィルター適用中）'}
           </Typography>
           <Typography variant="h4" fontWeight="bold">
-            ¥{thisMonthTotal.toLocaleString()}
+            ¥{filteredTotal.toLocaleString()}
           </Typography>
+          {activeFilterCount > 0 && (
+            <Typography variant="caption" color="text.secondary">
+              {filtered.length} 件
+            </Typography>
+          )}
         </CardContent>
       </Card>
 
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>
-          支出を追加
+      {/* 検索バー + 追加ボタン */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+        <TextField
+          size="small"
+          placeholder="キーワード検索..."
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          sx={{ flexGrow: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+            endAdornment: searchText ? (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={() => setSearchText('')}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ) : null,
+          }}
+        />
+        <Badge badgeContent={activeFilterCount} color="primary">
+          <IconButton
+            onClick={() => setFilterOpen(v => !v)}
+            color={filterOpen ? 'primary' : 'default'}
+            sx={{ border: 1, borderColor: filterOpen ? 'primary.main' : 'divider', borderRadius: 1 }}
+          >
+            <FilterListIcon />
+          </IconButton>
+        </Badge>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd} sx={{ flexShrink: 0 }}>
+          追加
         </Button>
       </Box>
+
+      {/* フィルターパネル */}
+      <Collapse in={filterOpen}>
+        <Card variant="outlined" sx={{ mb: 1, p: 1.5 }}>
+          <Stack spacing={1.5}>
+            {/* 月 */}
+            <FormControl size="small" fullWidth>
+              <InputLabel>月</InputLabel>
+              <Select value={filterMonth} label="月" onChange={e => setFilterMonth(e.target.value)}>
+                {monthOptions.map(opt => (
+                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* メンバー */}
+            <FormControl size="small" fullWidth>
+              <InputLabel>メンバー</InputLabel>
+              <Select
+                value={filterMember}
+                label="メンバー"
+                onChange={e => setFilterMember(e.target.value)}
+              >
+                <MenuItem value="">すべて</MenuItem>
+                {settings.members.map(m => (
+                  <MenuItem key={m} value={m}>{m}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* カテゴリ（チップ） */}
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                カテゴリ
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                {settings.categories.map(cat => (
+                  <Chip
+                    key={cat}
+                    label={cat}
+                    size="small"
+                    onClick={() => toggleCategory(cat)}
+                    variant={filterCategories.includes(cat) ? 'filled' : 'outlined'}
+                    sx={{
+                      bgcolor: filterCategories.includes(cat)
+                        ? (CATEGORY_COLORS[cat] ?? '#D3D3D3')
+                        : undefined,
+                    }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+
+            {/* クリアボタン */}
+            {activeFilterCount > 0 && (
+              <Button size="small" onClick={clearFilters} color="inherit" sx={{ alignSelf: 'flex-start' }}>
+                フィルターをクリア
+              </Button>
+            )}
+          </Stack>
+        </Card>
+      </Collapse>
 
       <Divider sx={{ mb: 2 }} />
 
       <Stack spacing={1}>
-        {transactions.length === 0 && (
+        {filtered.length === 0 && (
           <Typography color="text.secondary" textAlign="center" sx={{ mt: 4 }}>
-            まだ記録がありません
+            {transactions.length === 0 ? 'まだ記録がありません' : '条件に一致する支出がありません'}
           </Typography>
         )}
-        {transactions.map(t => (
+        {filtered.map(t => (
           <Card key={t.id} variant="outlined">
-            {/* タップで編集ダイアログを開く */}
             <CardActionArea onClick={() => openEdit(t)}>
               <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
