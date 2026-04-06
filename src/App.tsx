@@ -41,7 +41,7 @@ function NavTabs() {
 function Layout() {
   const { user, signOut } = useAuth();
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" sx={{ mr: 2 }}>
