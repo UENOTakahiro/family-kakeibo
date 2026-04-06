@@ -29,7 +29,8 @@ function NavTabs() {
   const { pathname } = useLocation();
   const currentTab = NAV_ITEMS.findIndex(item => pathname.startsWith(item.path));
   return (
-    <Tabs value={currentTab === -1 ? 0 : currentTab} textColor="inherit" indicatorColor="secondary">
+    <Tabs value={currentTab === -1 ? 0 : currentTab} textColor="inherit" indicatorColor="secondary"
+          variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
       {NAV_ITEMS.map(item => (
         <Tab key={item.path} label={item.label} component={Link} to={item.path} />
       ))}
@@ -46,8 +47,9 @@ function Layout() {
           <Typography variant="h6" sx={{ mr: 2 }}>
             家族の家計簿
           </Typography>
-          <NavTabs />
-          <Box sx={{ flexGrow: 1 }} />
+          <Box sx={{ flexGrow: 1, overflow: 'hidden', minWidth: 0 }}>
+            <NavTabs />
+          </Box>
           <Tooltip title={user?.displayName ?? ''}>
             <IconButton color="inherit" onClick={signOut}>
               <LogoutIcon />
