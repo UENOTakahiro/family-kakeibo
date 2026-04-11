@@ -19,6 +19,7 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { BudgetPage } from './pages/BudgetPage';
 import { SettlementPage } from './pages/SettlementPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { DepositPage } from './pages/DepositPage';
 
 const NAV_ITEMS = [
   { label: 'ホーム', path: '/dashboard' },
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { label: '分析', path: '/analytics' },
   { label: '予算', path: '/budget' },
   { label: '精算', path: '/settlement' },
+  { label: '入金', path: '/deposits' },
   { label: '設定', path: '/settings' },
 ];
 
@@ -69,6 +71,7 @@ function Layout() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/budget" element={<BudgetPage />} />
           <Route path="/settlement" element={<SettlementPage />} />
+          <Route path="/deposits" element={<DepositPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Box>

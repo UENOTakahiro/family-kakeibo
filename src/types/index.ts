@@ -1,5 +1,22 @@
 import type { Timestamp } from 'firebase/firestore';
 
+export interface Deposit {
+  id: string;
+  date: string;       // "YYYY-MM-DD"
+  amount: number;
+  member: string;
+  note: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export interface DepositInput {
+  date: string;
+  amount: number;
+  member: string;
+  note: string;
+}
+
 export interface Transaction {
   id: string;
   date: string;          // "YYYY-MM-DD"
@@ -29,6 +46,7 @@ export interface Budget {
 export interface Settings {
   categories: string[];
   members: string[];
+  monthlyDepositTarget?: number;
 }
 
 export interface User {

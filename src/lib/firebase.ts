@@ -19,7 +19,7 @@ import type {
   WithFieldValue,
 } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut } from 'firebase/auth';
-import type { Transaction, TransactionInput, Settings, Budget } from '../types';
+import type { Transaction, TransactionInput, Settings, Budget, Deposit, DepositInput } from '../types';
 
 const transactionConverter: FirestoreDataConverter<Transaction> = {
   toFirestore(t: WithFieldValue<Transaction>) {
@@ -137,4 +137,58 @@ export function subscribeBudget(
 
 export async function setBudget(yearMonth: string, budget: Budget): Promise<void> {
   await setDoc(doc(db, 'budgets', yearMonth), budget);
+}
+
+// ---- 入金 ----
+
+const depositConverter: FirestoreDataConverter<Deposit> = {
+  toFirestore(d: WithFieldValue<Deposit>) {
+    const { id: _id, ...data } = d as Deposit;
+    return data;
+  },
+  fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Deposit {
+    const d = snapshot.data(options);
+    return {
+      id: snapshot.id,
+      date: d.date,
+      amount: d.amount,
+      member: d.member,
+      note: d.note ?? '',
+      createdAt: d.createdAt ?? null,
+      updatedAt: d.updatedAt ?? null,
+    };
+  },
+};
+
+export async function addDeposit(input: DepositInput): Promise<string> {
+  const ref = await addDoc(collection(db, 'deposits'), {
+    ...input,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateDeposit(
+  id: string,
+  input: Partial<DepositInput>,
+): Promise<void> {
+  await updateDoc(doc(db, 'deposits', id), {
+    ...input,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteDeposit(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'deposits', id));
+}
+
+export function subscribeDeposits(onData: (deposits: Deposit[]) => void) {
+  const q = query(
+    collection(db, 'deposits').withConverter(depositConverter),
+    orderBy('date', 'desc'),
+  );
+  return onSnapshot(q, snapshot => {
+    onData(snapshot.docs.map(d => d.data()));
+  });
 }
